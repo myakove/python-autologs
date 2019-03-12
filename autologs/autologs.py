@@ -105,19 +105,17 @@ def generate_logs(info=True, error=True, warn=False):
                 new_dict[k] = getattr(v, "name", getattr(v, "id", v))
         return new_dict
 
-    def get_log_msg(log_action, stack, **kwargs):
+    def get_log_msg(log_action, **kwargs):
         """
         Generate info and error logs for log_action on object.
 
         Args:
             log_action (str): The log_action to perform on the object (create, update, remove)
-            stack (list): stack (inspect.stack()) list
             kwargs (dict): Parameters for the log_action if any
 
         Returns:
             tuple: Log info and log error text
         """
-        called_from, _ = get_called_from_test(stack=stack)
         kwargs = prepare_kwargs_for_log(**kwargs)
         kwargs_to_pop = []
         kwargs_to_log = {}
@@ -149,57 +147,13 @@ def generate_logs(info=True, error=True, warn=False):
                     v, "name", getattr(v, "id", getattr(v, "fqdn", v))
                 )
 
-        called_from_log = "[{called_from}]".format(called_from=called_from) if called_from else ""
         with_kwargs = " with {kwargs_to_log}".format(kwargs_to_log=kwargs_to_log) if kwargs_to_log else ""
         log_info_txt = (
-            "{called_from_log} {log_action}{with_kwargs}".format(
-                called_from_log=called_from_log, log_action=log_action, with_kwargs=with_kwargs
-            )
+            "{log_action}{with_kwargs}".format(log_action=log_action, with_kwargs=with_kwargs)
         ).strip()
         log_info_txt = log_info_txt.replace("  ", "")
         log_error_txt = "Failed to {log_info_txt}".format(log_info_txt=log_info_txt.lower())
         return log_info_txt, log_error_txt
-
-    def get_called_from_test(stack):
-        """
-        Check if function was called from test or from fixture
-
-        Args:
-            stack (list): stack (inspect.stack()) list
-
-        Returns:
-            tuple: From where the function called (step (test), setup or teardown)
-                and if called from fixture the fixture scope as well
-        """
-        scope = ""
-        call_args = [i[3] for i in stack]
-        frames = [i[0] for i in stack]
-        if "pytest_runtest_call" in call_args:
-            return "step", scope
-
-        if "pytest_fixture_setup" in call_args:
-            for f in frames:
-                fixture_def = f.f_locals.get("fixturedef", None)
-                if fixture_def:
-                    try:
-                        scope = fixture_def.scope
-                    except AttributeError:
-                        scope = ""
-            return "setup", scope
-
-        if "pytest_runtest_teardown" in call_args:
-            for f in frames:
-                fixture_fin = f.f_locals.get("fin", None)
-                if fixture_fin:
-                    try:
-                        if getattr(fixture_fin, "func", None):
-                            scope = fixture_fin.func.im_self.scope
-                        else:
-                            scope = fixture_fin.im_self.scope
-                    except AttributeError:
-                        scope = ""
-            return "teardown", scope
-        return "", scope
 
     def generate_logs_decorator(func):
         """
@@ -258,7 +212,7 @@ def generate_logs(info=True, error=True, warn=False):
                     kwargs_for_log[k] = v
 
             log_action = func_doc.split("\n")[0]
-            log_info, log_err = get_log_msg(log_action=log_action, stack=stack, **kwargs_for_log)
+            log_info, log_err = get_log_msg(log_action=log_action, **kwargs_for_log)
 
             if info:
                 logger.info(log_info)
