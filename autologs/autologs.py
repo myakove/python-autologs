@@ -3,8 +3,6 @@ import logging
 import re
 from functools import wraps
 
-LOGGER = logging.getLogger(__name__)
-
 
 class GenerateLogs(object):
     def __init__(self, logger=None):
@@ -118,18 +116,18 @@ class GenerateLogs(object):
                     )
 
                 if info:
-                    LOGGER.info(log_info)
+                    self.logger.info(log_info)
                 try:
                     res = func(*args, **kwargs)
                 except Exception:
-                    LOGGER.error(log_err)
+                    self.logger.error(log_err)
                     raise
 
                 if not res:
                     if warn:
-                        LOGGER.warning(log_err)
+                        self.logger.warning(log_err)
                     elif error:
-                        LOGGER.error(log_err)
+                        self.logger.error(log_err)
                 return res
 
             return inner
