@@ -172,10 +172,9 @@ def generate_logs(info=True, error=True, warn=False):
             The call for the function
             """
             kwargs_for_log = kwargs.copy()
-            stack = inspect.stack()
             func_doc = inspect.getdoc(func)
             func_argspec = inspect.getfullargspec(func)
-            func_file_name = func.__module__.split('.')[-1]
+            func_file_name = func.__module__
             logger = logging.getLogger(func_file_name)
 
             # Get function default args
