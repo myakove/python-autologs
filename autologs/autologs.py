@@ -216,14 +216,18 @@ def generate_logs(info=True, error=True, warn=False):
 
             if info:
                 logger.info(log_info)
-
-            res = func(*args, **kwargs)
-            if not res:
-                if warn:
-                    logger.warning(log_err)
-                elif error:
-                    logger.error(log_err)
-            return res
+            try:
+                res = func(*args, **kwargs)
+                if not res:
+                    if warn:
+                        logger.warning(log_err)
+                    elif error:
+                        logger.error(log_err)
+                return res
+            except Exception as e:
+                logger.error(log_err)
+                logger.error(e)
+                raise
 
         return inner
     return generate_logs_decorator

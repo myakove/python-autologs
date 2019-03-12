@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="python-autologs",
-    version="0.0.4-dev5",
+    version="0.0.4-dev6",
     author="Meni Yakove",
     author_email="myakove@gmail.com",
     description="Auto generate logs for functions",
