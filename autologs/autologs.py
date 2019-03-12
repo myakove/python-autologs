@@ -4,136 +4,45 @@ import re
 from functools import wraps
 
 
-class GenerateLogs(object):
-    def __init__(self, logger=None):
-        """
-        Initialing the logger
+def generate_logs(info=True, error=True, warn=False):
+    """
+    Decorator to generate log info and log error for function.
+    The log contain the first line from the function docstring and resolve
+    names from function docstring by function args, any args that not
+    resolved from the docstring will be printed after.
+    In some cases only info or error log is needed, the decorator can be
+    called with @generate_logs(error=False) to get only log INFO and vice versa
 
-        Args:
-            logger (Logger): logger instance to use
+    Example:
+        from autologs.autologs import GenerateLogs
+        logger = logging.getLoger(""NAME)
+        gl = GenerateLogs(logger=logger)
 
-        """
-        self.logger = logger if logger else logging.getLogger(__name__)
+        @gl.generate_logs()
+        def my_test(test, cases):
+            '''
+            Run test with cases
+            '''
+            return
 
-    def generate_logs(self, info=True, error=True, warn=False):
-        """
-        Decorator to generate log info and log error for function.
-        The log contain the first line from the function docstring and resolve
-        names from function docstring by function args, any args that not
-        resolved from the docstring will be printed after.
-        In some cases only info or error log is needed, the decorator can be
-        called with @generate_logs(error=False) to get only log INFO and vice versa
+    call my_test(test='my-test-name', cases=['case01', 'case02']
+    Will generate:
+        INFO Run test my-test-name with cases case01, case02
+        ERROR Failed to Run test my-test-name with cases case01, case02
+        if step is True:
+            Test Step   1: Run test my-test-name with cases case01, case02
 
-        Example:
-            from autologs.autologs import GenerateLogs
-            logger = logging.getLoger(""NAME)
-            gl = GenerateLogs(logger=logger)
+    Args:
+        info (bool): True to get INFO log
+        error (bool): True to get ERROR log
+        warn (bool): True to get WARN log
 
-            @gl.generate_logs()
-            def my_test(test, cases):
-                '''
-                Run test with cases
-                '''
-                return
+    Returns:
+        any: The function return
+    """
+    logger = logging.getLogger()
 
-        call my_test(test='my-test-name', cases=['case01', 'case02']
-        Will generate:
-            INFO Run test my-test-name with cases case01, case02
-            ERROR Failed to Run test my-test-name with cases case01, case02
-            if step is True:
-                Test Step   1: Run test my-test-name with cases case01, case02
-
-        Args:
-            info (bool): True to get INFO log
-            error (bool): True to get ERROR log
-            warn (bool): True to get WARN log
-
-        Returns:
-            any: The function return
-        """
-
-        def generate_logs_decorator(func):
-            """
-            The real decorator
-
-            Args:
-                func (Function): Function
-
-            Returns:
-                any: The function return
-            """
-
-            @wraps(func)
-            def inner(*args, **kwargs):
-                """
-                The call for the function
-                """
-                kwargs_for_log = kwargs.copy()
-                stack = inspect.stack()
-                called_from, _ = self.get_called_from_test(stack=stack)
-                func_doc = inspect.getdoc(func)
-                func_argspec = inspect.getfullargspec(func)
-
-                # Get function default args
-                func_argspec_default = dict(
-                    zip(
-                        func_argspec.args[-len(func_argspec.defaults or list()):],
-                        func_argspec.defaults or list()
-                    )
-                )
-
-                # Get actual function args
-                func_args = dict(zip(func_argspec.args, [kwargs.get(i) for i in func_argspec.args]))
-
-                # Filter missing args from default if not sent by user
-                missing_args = dict(
-                    (k, v) for k, v in func_argspec_default.items() if
-                    k not in func_args.keys()
-                )
-
-                # Update func_args with missing args
-                for k, v in missing_args.items():
-                    if k == "self":
-                        continue
-
-                    if k not in func_args.keys():
-                        func_args[k] = v
-
-                # Update kwargs_for_log with all args
-                for k, v in func_args.items():
-                    if k == "self":
-                        continue
-
-                    if k not in kwargs_for_log.keys():
-                        kwargs_for_log[k] = v
-
-                log_action = func_doc.split("\n")[0]
-                log_info, log_err = self.get_log_msg(log_action=log_action, **kwargs_for_log)
-                if called_from:
-                    called_from_log = "[{called_from}]".format(called_from=called_from)
-                    log_info = "{called_from_log} {log_info}".format(
-                        called_from_log=called_from_log, log_info=log_info
-                    )
-
-                if info:
-                    self.logger.info(log_info)
-                try:
-                    res = func(*args, **kwargs)
-                except Exception:
-                    self.logger.error(log_err)
-                    raise
-
-                if not res:
-                    if warn:
-                        self.logger.warning(log_err)
-                    elif error:
-                        self.logger.error(log_err)
-                return res
-
-            return inner
-        return generate_logs_decorator
-
-    def prepare_kwargs_for_log(self, **kwargs):
+    def prepare_kwargs_for_log(**kwargs):
         """
         Prepare kwargs for get_log_msg()
 
@@ -149,16 +58,16 @@ class GenerateLogs(object):
                 continue
 
             elif isinstance(v, list):
-                new_kwargs[k] = self.convert_list(items_list=v)
+                new_kwargs[k] = convert_list(items_list=v)
 
             elif isinstance(v, dict):
-                new_kwargs[k] = self.convert_dict(items_dict=v)
+                new_kwargs[k] = convert_dict(items_dict=v)
 
             else:
                 new_kwargs[k] = getattr(v, "name", getattr(v, "id", v))
         return new_kwargs
 
-    def convert_list(self, items_list):
+    def convert_list(items_list):
         """
         Convert objects in the list to names/ids
 
@@ -171,12 +80,12 @@ class GenerateLogs(object):
         new_list = []
         for i in items_list:
             if isinstance(i, dict):
-                new_list.append(self.convert_dict(items_dict=i))
+                new_list.append(convert_dict(items_dict=i))
             else:
                 new_list.append(getattr(i, "name", getattr(i, "id", i)))
         return new_list
 
-    def convert_dict(self, items_dict):
+    def convert_dict(items_dict):
         """
         Convert objects in the dict to names/ids
 
@@ -192,12 +101,12 @@ class GenerateLogs(object):
                 continue
 
             if isinstance(v, list):
-                new_dict[k] = self.convert_list(items_list=v)
+                new_dict[k] = convert_list(items_list=v)
             else:
                 new_dict[k] = getattr(v, "name", getattr(v, "id", v))
         return new_dict
 
-    def get_log_msg(self, log_action, obj_type="", obj_name="", extra_txt="", **kwargs):
+    def get_log_msg(log_action, obj_type="", obj_name="", extra_txt="", **kwargs):
         """
         Generate info and error logs for log_action on object.
 
@@ -212,7 +121,7 @@ class GenerateLogs(object):
         Returns:
             tuple: Log info and log error text
         """
-        kwargs = self.prepare_kwargs_for_log(**kwargs)
+        kwargs = prepare_kwargs_for_log(**kwargs)
         kwargs_to_pop = []
         kwargs_to_log = {}
         log = [re.sub('[^0-9a-zA-Z|_]+', "", i) for i in log_action.lower().split()]
@@ -256,7 +165,7 @@ class GenerateLogs(object):
         log_error_txt = "Failed to %s" % (info_text.lower())
         return info_text, log_error_txt
 
-    def get_called_from_test(self, stack):
+    def get_called_from_test(stack):
         """
         Check if function was called from test or from fixture
 
@@ -296,3 +205,84 @@ class GenerateLogs(object):
                         scope = ""
             return "teardown", scope
         return "", scope
+
+    def generate_logs_decorator(func):
+        """
+        The real decorator
+
+        Args:
+            func (Function): Function
+
+        Returns:
+            any: The function return
+        """
+
+        @wraps(func)
+        def inner(*args, **kwargs):
+            """
+            The call for the function
+            """
+            kwargs_for_log = kwargs.copy()
+            stack = inspect.stack()
+            called_from, _ = get_called_from_test(stack=stack)
+            func_doc = inspect.getdoc(func)
+            func_argspec = inspect.getfullargspec(func)
+
+            # Get function default args
+            func_argspec_default = dict(
+                zip(
+                    func_argspec.args[-len(func_argspec.defaults or list()):],
+                    func_argspec.defaults or list()
+                )
+            )
+
+            # Get actual function args
+            func_args = dict(zip(func_argspec.args, [kwargs.get(i) for i in func_argspec.args]))
+
+            # Filter missing args from default if not sent by user
+            missing_args = dict(
+                (k, v) for k, v in func_argspec_default.items() if
+                k not in func_args.keys()
+            )
+
+            # Update func_args with missing args
+            for k, v in missing_args.items():
+                if k == "self":
+                    continue
+
+                if k not in func_args.keys():
+                    func_args[k] = v
+
+            # Update kwargs_for_log with all args
+            for k, v in func_args.items():
+                if k == "self":
+                    continue
+
+                if k not in kwargs_for_log.keys():
+                    kwargs_for_log[k] = v
+
+            log_action = func_doc.split("\n")[0]
+            log_info, log_err = get_log_msg(log_action=log_action, **kwargs_for_log)
+            if called_from:
+                called_from_log = "[{called_from}]".format(called_from=called_from)
+                log_info = "{called_from_log} {log_info}".format(
+                    called_from_log=called_from_log, log_info=log_info
+                )
+
+            if info:
+                logger.info(log_info)
+            try:
+                res = func(*args, **kwargs)
+            except Exception:
+                logger.error(log_err)
+                raise
+
+            if not res:
+                if warn:
+                    logger.warning(log_err)
+                elif error:
+                    logger.error(log_err)
+            return res
+
+        return inner
+    return generate_logs_decorator
