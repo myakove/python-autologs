@@ -150,9 +150,9 @@ def generate_logs(info=True, error=True, warn=False):
                 )
 
         called_from_log = "[{called_from}]".format(called_from=called_from) if called_from else ""
-        with_kwargs = "with {kwargs_to_log}".format(kwargs_to_log=kwargs_to_log if kwargs_to_log else "")
+        with_kwargs = " with {kwargs_to_log}".format(kwargs_to_log=kwargs_to_log) if kwargs_to_log else ""
         log_info_txt = (
-            "{called_from_log} {log_action} {with_kwargs}".format(
+            "{called_from_log} {log_action}{with_kwargs}".format(
                 called_from_log=called_from_log, log_action=log_action, with_kwargs=with_kwargs
             )
         ).strip()
