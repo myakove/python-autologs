@@ -40,7 +40,6 @@ def generate_logs(info=True, error=True, warn=False):
     Returns:
         any: The function return
     """
-    logger = logging.getLogger()
 
     def prepare_kwargs_for_log(**kwargs):
         """
@@ -112,12 +111,12 @@ def generate_logs(info=True, error=True, warn=False):
 
         Args:
             log_action (str): The log_action to perform on the object (create, update, remove)
+            stack (list): stack (inspect.stack()) list
             kwargs (dict): Parameters for the log_action if any
 
         Returns:
             tuple: Log info and log error text
         """
-        func_file_name = kwargs.pop("func_file_name", "")
         called_from, _ = get_called_from_test(stack=stack)
         kwargs = prepare_kwargs_for_log(**kwargs)
         kwargs_to_pop = []
@@ -159,13 +158,6 @@ def generate_logs(info=True, error=True, warn=False):
         ).strip()
         log_info_txt = log_info_txt.replace("  ", "")
         log_error_txt = "Failed to {log_info_txt}".format(log_info_txt=log_info_txt.lower())
-
-        log_info_txt = "[{func_file_name}] -- {log_info_txt}".format(
-            func_file_name=func_file_name, log_info_txt=log_info_txt
-        )
-        log_error_txt = "[{func_file_name}] -- {log_error_txt}".format(
-            func_file_name=func_file_name, log_error_txt=log_error_txt
-        )
         return log_info_txt, log_error_txt
 
     def get_called_from_test(stack):
@@ -230,6 +222,7 @@ def generate_logs(info=True, error=True, warn=False):
             func_doc = inspect.getdoc(func)
             func_argspec = inspect.getfullargspec(func)
             func_file_name = func.__module__.split('.')[-1]
+            logger = logging.getLogger(func_file_name)
 
             # Get function default args
             func_argspec_default = dict(
@@ -264,7 +257,6 @@ def generate_logs(info=True, error=True, warn=False):
                 if k not in kwargs_for_log.keys():
                     kwargs_for_log[k] = v
 
-            kwargs_for_log["func_file_name"] = func_file_name
             log_action = func_doc.split("\n")[0]
             log_info, log_err = get_log_msg(log_action=log_action, stack=stack, **kwargs_for_log)
 
