@@ -40,7 +40,6 @@ def generate_logs(info=True, error=True, warn=False):
     Returns:
         any: The function return
     """
-    logger = logging.getLogger()
 
     def prepare_kwargs_for_log(**kwargs):
         """
@@ -106,7 +105,7 @@ def generate_logs(info=True, error=True, warn=False):
                 new_dict[k] = getattr(v, "name", getattr(v, "id", v))
         return new_dict
 
-    def get_log_msg(log_action, stack, **kwargs):
+    def get_log_msg(log_action, **kwargs):
         """
         Generate info and error logs for log_action on object.
 
@@ -117,8 +116,6 @@ def generate_logs(info=True, error=True, warn=False):
         Returns:
             tuple: Log info and log error text
         """
-        func_file_name = kwargs.pop("func_file_name", "")
-        called_from, _ = get_called_from_test(stack=stack)
         kwargs = prepare_kwargs_for_log(**kwargs)
         kwargs_to_pop = []
         kwargs_to_log = {}
@@ -150,64 +147,13 @@ def generate_logs(info=True, error=True, warn=False):
                     v, "name", getattr(v, "id", getattr(v, "fqdn", v))
                 )
 
-        called_from_log = "[{called_from}]".format(called_from=called_from) if called_from else ""
-        with_kwargs = "with {kwargs_to_log}".format(kwargs_to_log=kwargs_to_log if kwargs_to_log else "")
+        with_kwargs = " with {kwargs_to_log}".format(kwargs_to_log=kwargs_to_log) if kwargs_to_log else ""
         log_info_txt = (
-            "{called_from_log} {log_action} {with_kwargs}".format(
-                called_from_log=called_from_log, log_action=log_action, with_kwargs=with_kwargs
-            )
+            "{log_action}{with_kwargs}".format(log_action=log_action, with_kwargs=with_kwargs)
         ).strip()
         log_info_txt = log_info_txt.replace("  ", "")
         log_error_txt = "Failed to {log_info_txt}".format(log_info_txt=log_info_txt.lower())
-
-        log_info_txt = "[{func_file_name}] -- {log_info_txt}".format(
-            func_file_name=func_file_name, log_info_txt=log_info_txt
-        )
-        log_error_txt = "[{func_file_name}] -- {log_error_txt}".format(
-            func_file_name=func_file_name, log_error_txt=log_error_txt
-        )
         return log_info_txt, log_error_txt
-
-    def get_called_from_test(stack):
-        """
-        Check if function was called from test or from fixture
-
-        Args:
-            stack (list): stack (inspect.stack()) list
-
-        Returns:
-            tuple: From where the function called (step (test), setup or teardown)
-                and if called from fixture the fixture scope as well
-        """
-        scope = ""
-        call_args = [i[3] for i in stack]
-        frames = [i[0] for i in stack]
-        if "pytest_runtest_call" in call_args:
-            return "step", scope
-
-        if "pytest_fixture_setup" in call_args:
-            for f in frames:
-                fixture_def = f.f_locals.get("fixturedef", None)
-                if fixture_def:
-                    try:
-                        scope = fixture_def.scope
-                    except AttributeError:
-                        scope = ""
-            return "setup", scope
-
-        if "pytest_runtest_teardown" in call_args:
-            for f in frames:
-                fixture_fin = f.f_locals.get("fin", None)
-                if fixture_fin:
-                    try:
-                        if getattr(fixture_fin, "func", None):
-                            scope = fixture_fin.func.im_self.scope
-                        else:
-                            scope = fixture_fin.im_self.scope
-                    except AttributeError:
-                        scope = ""
-            return "teardown", scope
-        return "", scope
 
     def generate_logs_decorator(func):
         """
@@ -226,10 +172,10 @@ def generate_logs(info=True, error=True, warn=False):
             The call for the function
             """
             kwargs_for_log = kwargs.copy()
-            stack = inspect.stack()
             func_doc = inspect.getdoc(func)
             func_argspec = inspect.getfullargspec(func)
-            func_file_name = func.__module__.split('.')[-1]
+            func_file_name = func.__module__
+            logger = logging.getLogger(func_file_name)
 
             # Get function default args
             func_argspec_default = dict(
@@ -264,24 +210,23 @@ def generate_logs(info=True, error=True, warn=False):
                 if k not in kwargs_for_log.keys():
                     kwargs_for_log[k] = v
 
-            kwargs_for_log["func_file_name"] = func_file_name
             log_action = func_doc.split("\n")[0]
-            log_info, log_err = get_log_msg(log_action=log_action, stack=stack, **kwargs_for_log)
+            log_info, log_err = get_log_msg(log_action=log_action, **kwargs_for_log)
 
             if info:
                 logger.info(log_info)
             try:
                 res = func(*args, **kwargs)
-            except Exception:
+                if not res:
+                    if warn:
+                        logger.warning(log_err)
+                    elif error:
+                        logger.error(log_err)
+                return res
+            except Exception as e:
                 logger.error(log_err)
+                logger.error(e)
                 raise
-
-            if not res:
-                if warn:
-                    logger.warning(log_err)
-                elif error:
-                    logger.error(log_err)
-            return res
 
         return inner
     return generate_logs_decorator
